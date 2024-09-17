@@ -12,8 +12,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-class speechToTextBtn extends StatefulWidget {
-  speechToTextBtn(
+class SpeechToTextBtn extends StatefulWidget {
+  const SpeechToTextBtn(
       {required this.startedRecordChild,
       required this.stopedRecordChild,
       required this.theText,
@@ -33,10 +33,10 @@ class speechToTextBtn extends StatefulWidget {
   final Widget stopedRecordChild;
 
   @override
-  State<speechToTextBtn> createState() => _speechToTextBtnState();
+  State<SpeechToTextBtn> createState() => _SpeechToTextBtnState();
 }
 
-class _speechToTextBtnState extends State<speechToTextBtn> {
+class _SpeechToTextBtnState extends State<SpeechToTextBtn> {
   final SpeechToText speechToText = SpeechToText();
   final vosk = VoskFlutterPlugin.instance();
   final modelLoader = ModelLoader();
@@ -69,7 +69,7 @@ class _speechToTextBtnState extends State<speechToTextBtn> {
             ? widget.startedRecordChild
             : widget.stopedRecordChild);
   }
-
+/// Its for android not supported by google using vosk package 
   void loadModel() async {
     if (await modelLoader.isModelAlreadyLoaded(widget.isEnglish
         ? "vosk-model-small-en-us-0.15"
@@ -137,10 +137,38 @@ class _speechToTextBtnState extends State<speechToTextBtn> {
           });
         } else {
           print(e);
-          print("object");
+
         }
       }
     }
+  }
+ void startStopdRecordNotSuportedGoogle() async {
+    if (recognitionStarted) {
+      await speechService?.stop();
+
+      subscription?.cancel();
+    } else {
+      await speechService!.start();
+      setState(() {
+        fullText = "";
+        subscription = speechService?.onResult().listen(
+              (value) => widget.theText(resultNotSuportedGoogle(value)),
+            );
+      });
+    }
+  }
+    String resultNotSuportedGoogle(
+    String result,
+  ) {
+    var str = (jsonDecode(result));
+
+    var newStr = str.text ?? "";
+    if (newStr.isNotEmpty) {
+      setState(() {
+        fullText +=" " + newStr ;
+      });
+    }
+    return fullText;
   }
 
   void startStopdRecord() async {
@@ -153,94 +181,57 @@ class _speechToTextBtnState extends State<speechToTextBtn> {
     });
   }
 
-  void startStopdRecordNotSuportedGoogle() async {
-    if (recognitionStarted) {
-      await speechService?.stop();
-
-      subscription?.cancel();
-    } else {
-      await speechService!.start();
-      setState(() {
-        fullText = "";
-        subscription = speechService?.onResult().listen(
-              (Value) => widget.theText(ResultNotSuportedGoogle(Value)),
-            );
-      });
-    }
-  }
+ /// Its for android supported by google using speech_to_text package
 
   void startStopRecordSuportedGoogle() async {
     if (recognitionStarted) {
-      // Stop the speech recognition
       await speechToText.stop();
-      // Update the recognition state
+      recognitionStarted = false;
       setState(() {});
     } else {
       await initializeSpeech();
 
-      // Check if speech is enabled before starting
       if (speechEnabled) {
-        startListening();
+        await speechToText.listen(
+          onResult: (result) {
+            widget.theText(ResultSuportedGoogle(result));
+            fullText += result.recognizedWords; // Update the full text
+          },
+          listenOptions:
+              SpeechListenOptions(cancelOnError: false, partialResults: true),
+          localeId: widget.isEnglish ? "en-US" : "ar-SA",
+        );
+
+        recognitionStarted = true;
+        setState(() {});
       }
     }
   }
 
-  void startListening() async {
-    // Start listening with continuous operation settings
-    await speechToText.listen(
-      listenOptions: SpeechListenOptions(
-        cancelOnError: false,
-        partialResults: true,
-      ),
-      onResult: (result) {
-        // Process the result and update the text
-        widget.theText(ResultSuportedGoogle(result));
-        fullText += result.recognizedWords; // Append to the full text
-      },
-      listenFor: Duration(hours: 5), // Set a very long duration for listening
-      pauseFor: Duration(
-          milliseconds: 500), // Minimal pause time to keep active listening
-      localeId: widget.isEnglish ? "en-US" : "ar-SA",
-    );
-
-    setState(() {});
-  }
-
   Future<void> initializeSpeech() async {
-    // Initialize speech-to-text with status and error handlers
     speechEnabled = await speechToText.initialize(
-      finalTimeout: Duration(hours: 5), // Long timeout for stability
       onStatus: (status) {
-        print('onStatus: $status');
-        // Only log status updates, do not restart or stop listening
+        if (status == 'notListening' || status == 'done') {
+          // Automatically restart if not listening
+          if (recognitionStarted) startStopRecordSuportedGoogle();
+        }
       },
       onError: (errorNotification) {
-        print('onError: $errorNotification');
-        // Handle errors gracefully without restarting initialization
+        // Restart on non-permanent errors
+        if (!errorNotification.permanent && recognitionStarted) {
+          startStopRecordSuportedGoogle();
+        }
       },
     );
 
     if (!speechEnabled) {
       print('Speech recognition not available on this device');
-      // Provide user feedback if initialization fails
+      // Consider providing feedback to the user here
     }
 
     setState(() {});
   }
 
-  String ResultNotSuportedGoogle(
-    String Result,
-  ) {
-    var str = (jsonDecode(Result));
-
-    var newStr = str.text ?? "";
-    if (newStr.isNotEmpty) {
-      setState(() {
-        fullText += " " + newStr;
-      });
-    }
-    return fullText;
-  }
 
   String ResultSuportedGoogle(SpeechRecognitionResult Result) {
     setState(() {
@@ -249,9 +240,9 @@ class _speechToTextBtnState extends State<speechToTextBtn> {
     return fullText;
   }
 }
-
-Future<bool> isAndroidGoogleNotSupported() async {
   // Check if the platform is Android
+Future<bool> isAndroidGoogleNotSupported() async {
+
   if (!Platform.isAndroid) return false;
 
   try {

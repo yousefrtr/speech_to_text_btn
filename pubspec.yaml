@@ -1,6 +1,6 @@
 name: speech_to_text_btn
-description: "is a Flutter widget that provides speech-to-text functionality for English and Arabic. It supports devices without Google Play Services using Vosk for offline recognition, and uses Google Speech APIs when available. Easily integrate voice input with customizable start and stop recording widgets."
-version: 0.0.2
+description: "is a Flutter widget for speech-to-text in English and Arabic, supporting offline use with Vosk and Google Speech APIs."
+version: 0.0.4
 homepage: https://github.com/yousefrtr/speech_to_text_btn.git
 
 environment:
